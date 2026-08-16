@@ -1,0 +1,14 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.ridecomm.app",
+      "sha256_cert_fingerprints": [
+        "9F:A1:15:EF:0D:1D:AD:A7:7C:5B:C6:00:66:FE:18:37:CF:ED:13:87:A1:5F:BB:97:86:E8:85:AB:23:41:BB:E8",
+        "2B:81:0E:4B:3D:5E:75:32:9A:81:B6:7D:A7:B7:CF:C6:C9:29:21:27:56:74:09:0F:9F:D1:CE:6D:A8:F0:8E:C1",
+        "0C:2C:EC:7C:0D:98:9A:0A:21:62:DE:CD:F0:38:2A:42:7A:2C:1F:08:5D:47:D4:54:9A:37:93:B9:00:67:73:33"
+      ]
+    }
+  }
+]

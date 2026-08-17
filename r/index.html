@@ -108,6 +108,14 @@
   .err { color: var(--active); font-size: .9rem; min-height: 1.2em; margin-top: 12px; }
   .getapp { margin-top: 26px; font-size: .82rem; color: var(--muted); }
   .getapp a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+  /* ---- debug strip (only with ?debug=1) ---- */
+  #dbg {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+    background: #000; color: #6f6; font: 11px/1.35 ui-monospace, Menlo, Consolas, monospace;
+    padding: 6px 10px; max-height: 42vh; overflow: auto; white-space: pre-wrap;
+    border-top: 2px solid #6f6;
+  }
 </style>
 </head>
 <body>
@@ -159,6 +167,8 @@
     </footer>
   </div>
 
+  <div id="dbg" style="display:none"></div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 import {
@@ -173,6 +183,19 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 const RIDE_COLLECTION = "notifications"; // matches the Android app
+
+// ---- on-screen debug (only with ?debug=1) — turns the phone into a console ----
+const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+const dbgEl = document.getElementById("dbg");
+if (DEBUG && dbgEl) dbgEl.style.display = "block";
+function dbg(msg) {
+  if (!DEBUG || !dbgEl) return;
+  const t = new Date().toLocaleTimeString();
+  dbgEl.textContent = t + "  " + msg + "\n" + dbgEl.textContent;
+}
+window.addEventListener("error", (e) => dbg("JS ERR: " + e.message));
+window.addEventListener("unhandledrejection", (e) => dbg("REJECT: " + (e.reason && e.reason.message ? e.reason.message : e.reason)));
+dbg("init ok, project=" + app.options.projectId);
 
 // The four signals, in the same order/meaning as the app's overlay.
 const SIGNALS = [
@@ -297,11 +320,13 @@ function toggle(key) {
   // optimistic paint; the snapshot will confirm
   prev[key] = next;
   render(prev);
+  dbg("write " + key + "=" + next + " …");
   setDoc(
     doc(db, RIDE_COLLECTION, rideCode),
     { [key]: next, timestamp: serverTimestamp() },
     { merge: true }
-  ).catch(() => setStatus("err"));
+  ).then(() => dbg("write " + key + "=" + next + " OK"))
+   .catch((e) => { setStatus("err"); dbg("write " + key + " ERR: " + (e && e.code ? e.code : e && e.message ? e.message : e)); });
 }
 
 function startListening(code) {
@@ -316,6 +341,9 @@ function startListening(code) {
     (snap) => {
       setStatus("live");
       const data = snap.exists() ? (snap.data() || {}) : {};
+      dbg("snap c" + (data.coffee?1:0) + " g" + (data.gas?1:0) + " p" + (data.photo?1:0)
+          + " s" + (data.stop?1:0) + (snap.metadata.hasPendingWrites ? " (local)" : "")
+          + (snap.metadata.fromCache ? " [cache]" : ""));
 
       // Ride ended by the owner (quit flag) — inform and drop back to join.
       if (data.quit === true) {
@@ -345,7 +373,7 @@ function startListening(code) {
       firstSnapshot = false;
       render(data);
     },
-    (_err) => setStatus("err")
+    (err) => { setStatus("err"); dbg("LISTEN ERR: " + (err && err.code ? err.code : err && err.message ? err.message : err)); }
   );
 }
 
@@ -360,7 +388,9 @@ function endedAndReturn() {
 
 // ---------- navigation between the two views ----------
 function enterBoard(code) {
+  dbg("join code=" + code);
   unlockAudio();      // must run inside the click gesture (iOS)
+  dbg("audio=" + (audioCtx ? audioCtx.state : "none"));
   requestWakeLock();
   buildTiles();
   startListening(code);

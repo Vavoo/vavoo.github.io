@@ -2,56 +2,431 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join a ride — Ride Comm</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6b4eff">
+<title>Ride Comm</title>
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    padding: 24px; color: #1a1a1a; background: #ffffff; text-align: center;
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #777;
+    --card: #f3f2fb;
+    --line: rgba(0,0,0,.08);
+    --accent: #6b4eff;
+    --idle: #2f6bff;      /* signal down (blue, matches app) */
+    --active: #ff2d2d;    /* signal up   (red,  matches app) */
+    --active-bg: rgba(255,45,45,.14);
   }
-  .card { max-width: 440px; width: 100%; }
-  h1 { font-size: 1.5rem; margin: 0 0 8px; }
-  p { color: #555; line-height: 1.5; }
-  .code {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 2.4rem; letter-spacing: .35rem; font-weight: 700;
-    margin: 20px 0; padding: 16px; border-radius: 14px;
-    background: rgba(107,78,255,.10); color: #6b4eff; word-break: break-all;
-  }
-  .btn {
-    display: inline-block; margin-top: 8px; padding: 14px 24px; border-radius: 999px;
-    background: #6b4eff; color: #fff; text-decoration: none; font-weight: 600;
-  }
-  ol { text-align: left; color: #555; line-height: 1.6; margin: 22px auto 0; max-width: 340px; }
-  .muted { color: #888; font-size: .85rem; margin-top: 26px; }
   @media (prefers-color-scheme: dark) {
-    body { color: #e6e6e6; background: #121212; }
-    p, ol { color: #b3b3b3; }
-    .code { background: rgba(179,164,255,.14); color: #b3a4ff; }
-    .muted { color: #777; }
+    :root {
+      --bg: #101014; --fg: #e9e9ef; --muted: #8a8a95;
+      --card: #1b1b22; --line: rgba(255,255,255,.10);
+      --accent: #b3a4ff; --idle: #6f95ff; --active: #ff5a5a;
+      --active-bg: rgba(255,90,90,.18);
+    }
   }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--fg);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap { max-width: 560px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+  .hidden { display: none !important; }
+
+  /* ---- Header ---- */
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--line);
+  }
+  header .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; transition: background .3s; }
+  header .dot.live { background: #22c55e; }
+  header .dot.err { background: var(--active); }
+  header .name { font-weight: 700; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header .code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); font-size: .8rem; letter-spacing: .12rem; }
+  header .spacer { flex: 1; }
+  header button.link { background: none; border: none; color: var(--accent); font-size: .9rem; font-weight: 600; cursor: pointer; padding: 6px; }
+
+  /* ---- Signal grid ---- */
+  main { flex: 1; padding: 18px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .tile {
+    border: 1px solid var(--line); background: var(--card);
+    border-radius: 20px; padding: 22px 10px; text-align: center;
+    cursor: pointer; user-select: none; transition: background .15s, border-color .15s, transform .08s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 128px; justify-content: center;
+  }
+  .tile:active { transform: scale(.97); }
+  .tile .glyph { font-size: 2.6rem; line-height: 1; }
+  .tile .lbl { font-weight: 600; font-size: 1.05rem; color: var(--idle); }
+  .tile.on { background: var(--active-bg); border-color: var(--active); }
+  .tile.on .lbl { color: var(--active); }
+  .tile.flash { animation: flash .6s ease-out; }
+  @keyframes flash {
+    0% { box-shadow: 0 0 0 0 rgba(255,45,45,.55); }
+    100% { box-shadow: 0 0 0 16px rgba(255,45,45,0); }
+  }
+  .hint { text-align: center; color: var(--muted); font-size: .85rem; margin: 18px 4px 0; line-height: 1.5; }
+
+  /* ---- Footer ---- */
+  footer { padding: 16px 18px 22px; text-align: center; border-top: 1px solid var(--line); }
+  footer a { color: var(--accent); text-decoration: none; font-weight: 600; font-size: .9rem; }
+  footer .sub { color: var(--muted); font-size: .78rem; margin-top: 6px; }
+
+  /* ---- Start / Join overlay ---- */
+  .overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; padding: 28px;
+    padding: max(28px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom));
+  }
+  .panel { width: 100%; max-width: 380px; text-align: center; }
+  .panel h1 { font-size: 1.7rem; margin: 0 0 6px; }
+  .panel p { color: var(--muted); line-height: 1.5; margin: 0 0 22px; }
+  .bigcode {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 2.2rem; letter-spacing: .3rem; font-weight: 700;
+    padding: 16px; border-radius: 16px; background: var(--card); color: var(--accent);
+    word-break: break-all; margin-bottom: 22px;
+  }
+  input.codein {
+    width: 100%; text-align: center; text-transform: uppercase;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 1.6rem; letter-spacing: .25rem; font-weight: 700;
+    padding: 14px; border-radius: 16px; border: 2px solid var(--line);
+    background: var(--card); color: var(--fg); margin-bottom: 16px;
+  }
+  input.codein:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    display: block; width: 100%; border: none; cursor: pointer;
+    padding: 16px 24px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 1.05rem;
+  }
+  .btn:disabled { opacity: .5; }
+  .err { color: var(--active); font-size: .9rem; min-height: 1.2em; margin-top: 12px; }
+  .getapp { margin-top: 26px; font-size: .82rem; color: var(--muted); }
+  .getapp a { color: var(--accent); text-decoration: none; font-weight: 600; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Join a ride on Ride Comm</h1>
-    <p>You've been invited to a group ride. Your ride code is:</p>
-    <div class="code" id="code">------</div>
-    <a class="btn" id="play" href="https://play.google.com/store/apps/details?id=com.ridecomm.app">Get Ride Comm on Google Play</a>
-    <ol>
-      <li>Install <strong>Ride Comm</strong> from Google Play.</li>
-      <li>Open the app and tap <strong>Join a ride</strong>.</li>
-      <li>Enter the code above.</li>
-    </ol>
-    <p class="muted">Already have the app? Opening this link should take you straight into the ride.</p>
+  <!-- ============ Start / Join overlay ============ -->
+  <div class="overlay" id="startOverlay">
+    <div class="panel">
+      <h1>Ride Comm</h1>
+      <p id="startBlurb">Enter your ride code to join.</p>
+
+      <div id="haveCode" class="hidden">
+        <div class="bigcode" id="startCode">------</div>
+      </div>
+      <div id="needCode">
+        <input class="codein" id="codeInput" inputmode="latin" autocapitalize="characters"
+               autocomplete="off" spellcheck="false" placeholder="RIDE CODE" maxlength="16">
+      </div>
+
+      <button class="btn" id="joinBtn">Join ride</button>
+      <div class="err" id="joinErr"></div>
+
+      <div class="getapp">
+        Leading the ride? <a href="https://play.google.com/store/apps/details?id=com.ridecomm.app">Get the Android app</a>
+        for a floating overlay you can tap without leaving your map.
+      </div>
+    </div>
   </div>
-<script>
-  var params = new URLSearchParams(location.search);
-  var c = (params.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (c) { document.getElementById("code").textContent = c; }
+
+  <!-- ============ Live board ============ -->
+  <div class="wrap hidden" id="board">
+    <header>
+      <span class="dot" id="statusDot" title="connecting…"></span>
+      <div style="min-width:0">
+        <div class="name" id="rideName">Ride</div>
+        <div class="code" id="rideCode">------</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="link" id="shareBtn">Share</button>
+      <button class="link" id="leaveBtn">Leave</button>
+    </header>
+
+    <main>
+      <div class="grid" id="grid"><!-- tiles injected --></div>
+      <p class="hint">Tap to raise a signal · tap again to lower it.<br>Everyone in the ride sees it, and hears the alert.</p>
+    </main>
+
+    <footer>
+      <a href="https://play.google.com/store/apps/details?id=com.ridecomm.app">Get Ride Comm for Android</a>
+      <div class="sub">Overlay controls + background alerts while you navigate.</div>
+    </footer>
+  </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  getFirestore, doc, onSnapshot, setDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+// ride-comm project. Firestore rules are open, so no auth is needed for the
+// co-rider web client — it just reads/writes the shared ride document.
+const app = initializeApp({
+  apiKey: "AIzaSyCpRW9rnl2hdX4DgB8JJZkb-y7dGqSU_Vs",
+  projectId: "ride-comm",
+});
+const db = getFirestore(app);
+const RIDE_COLLECTION = "notifications"; // matches the Android app
+
+// The four signals, in the same order/meaning as the app's overlay.
+const SIGNALS = [
+  { key: "coffee", glyph: "☕", label: "Coffee" },
+  { key: "gas",    glyph: "⛽", label: "Gas" },
+  { key: "photo",  glyph: "📷", label: "Photo" },
+  { key: "stop",   glyph: "✋", label: "Stop" },
+];
+
+// ---- element refs ----
+const $ = (id) => document.getElementById(id);
+const startOverlay = $("startOverlay");
+const board = $("board");
+const codeInput = $("codeInput");
+const joinBtn = $("joinBtn");
+const joinErr = $("joinErr");
+const statusDot = $("statusDot");
+const grid = $("grid");
+
+// ---- state ----
+let rideCode = null;
+let unsub = null;
+let audioCtx = null;
+let wakeLock = null;
+let firstSnapshot = true;
+let prev = {};                 // last-seen booleans
+const selfRaised = new Set();  // keys I just set true, to suppress my own beep
+
+// A ride code must be at least 4 chars and contain no "/" (mirrors the app).
+function normalize(raw) {
+  return (raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+function isValid(code) {
+  return code && code.length >= 4 && !code.includes("/");
+}
+
+// ---------- audio (WebAudio beep, unlocked by the Join gesture) ----------
+function unlockAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!audioCtx && Ctx) audioCtx = new Ctx();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_) {}
+}
+function beep() {
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+    // two short rising tones — a clear, non-buzzy alert
+    [[880, 0], [1320, 0.16]].forEach(([freq, at]) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = now + at;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.16);
+    });
+  } catch (_) {}
+}
+
+// ---------- screen wake lock (keep screen on so the tab doesn't suspend) ----------
+async function requestWakeLock() {
+  try {
+    if ("wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    }
+  } catch (_) { /* denied / unsupported — non-fatal */ }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    if (!wakeLock) requestWakeLock();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+});
+
+// ---------- rendering ----------
+function buildTiles() {
+  grid.innerHTML = "";
+  for (const s of SIGNALS) {
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.id = "tile-" + s.key;
+    el.innerHTML = `<div class="glyph">${s.glyph}</div><div class="lbl">${s.label}</div>`;
+    el.addEventListener("click", () => toggle(s.key));
+    grid.appendChild(el);
+  }
+}
+function setStatus(kind) { // 'live' | 'err' | ''
+  statusDot.className = "dot" + (kind ? " " + kind : "");
+  statusDot.title = kind === "live" ? "live" : kind === "err" ? "connection error" : "connecting…";
+}
+function render(data) {
+  for (const s of SIGNALS) {
+    const on = data[s.key] === true;
+    const tile = $("tile-" + s.key);
+    if (!tile) continue;
+    tile.classList.toggle("on", on);
+  }
+  // Header name: use the ride's name field if the redesign adds one, else the code.
+  $("rideName").textContent = (data && data.name) ? data.name : rideCode;
+}
+function flash(key) {
+  const tile = $("tile-" + key);
+  if (!tile) return;
+  tile.classList.remove("flash");
+  void tile.offsetWidth; // restart the animation
+  tile.classList.add("flash");
+}
+
+// ---------- Firestore ----------
+function toggle(key) {
+  if (!rideCode) return;
+  const next = !(prev[key] === true);
+  if (next) selfRaised.add(key);
+  // optimistic paint; the snapshot will confirm
+  prev[key] = next;
+  render(prev);
+  setDoc(
+    doc(db, RIDE_COLLECTION, rideCode),
+    { [key]: next, timestamp: serverTimestamp() },
+    { merge: true }
+  ).catch(() => setStatus("err"));
+}
+
+function startListening(code) {
+  rideCode = code;
+  $("rideCode").textContent = code;
+  $("rideName").textContent = code;
+  firstSnapshot = true;
+  prev = {};
+  if (unsub) unsub();
+  unsub = onSnapshot(
+    doc(db, RIDE_COLLECTION, code),
+    (snap) => {
+      setStatus("live");
+      const data = snap.exists() ? (snap.data() || {}) : {};
+
+      // Ride ended by the owner (quit flag) — inform and drop back to join.
+      if (data.quit === true) {
+        render({});
+        setStatus("");
+        endedAndReturn();
+        return;
+      }
+
+      // Alert on any signal that just went from down -> up (someone raised it).
+      if (!firstSnapshot) {
+        for (const s of SIGNALS) {
+          const now = data[s.key] === true;
+          const was = prev[s.key] === true;
+          if (now && !was) {
+            if (selfRaised.has(s.key)) { selfRaised.delete(s.key); }
+            else { beep(); }
+            flash(s.key);
+          }
+          if (!now) selfRaised.delete(s.key);
+        }
+      }
+      // snapshot is the source of truth for booleans
+      prev = {};
+      for (const s of SIGNALS) prev[s.key] = data[s.key] === true;
+      if (data.name) prev.name = data.name;
+      firstSnapshot = false;
+      render(data);
+    },
+    (_err) => setStatus("err")
+  );
+}
+
+let endedTimer = null;
+function endedAndReturn() {
+  joinErr.textContent = "";
+  // brief message then back to the join screen
+  $("rideName").textContent = "This ride has ended";
+  clearTimeout(endedTimer);
+  endedTimer = setTimeout(() => leave(), 2500);
+}
+
+// ---------- navigation between the two views ----------
+function enterBoard(code) {
+  unlockAudio();      // must run inside the click gesture (iOS)
+  requestWakeLock();
+  buildTiles();
+  startListening(code);
+  startOverlay.classList.add("hidden");
+  board.classList.remove("hidden");
+  // make the URL shareable / refresh-safe
+  const url = new URL(location.href);
+  url.searchParams.set("c", code);
+  history.replaceState(null, "", url);
+}
+function leave() {
+  if (unsub) { unsub(); unsub = null; }
+  rideCode = null;
+  board.classList.add("hidden");
+  startOverlay.classList.remove("hidden");
+  setStatus("");
+  const url = new URL(location.href);
+  url.searchParams.delete("c");
+  history.replaceState(null, "", url);
+  showJoinPrompt(null);
+}
+
+// ---------- join screen wiring ----------
+function showJoinPrompt(prefill) {
+  const code = normalize(prefill);
+  if (isValid(code)) {
+    $("haveCode").classList.remove("hidden");
+    $("needCode").classList.add("hidden");
+    $("startCode").textContent = code;
+    $("startBlurb").textContent = "You've been invited to a group ride.";
+    joinBtn.textContent = "Join " + code;
+    joinBtn.dataset.code = code;
+  } else {
+    $("haveCode").classList.add("hidden");
+    $("needCode").classList.remove("hidden");
+    $("startBlurb").textContent = "Enter your ride code to join.";
+    joinBtn.textContent = "Join ride";
+    joinBtn.dataset.code = "";
+    setTimeout(() => codeInput.focus(), 50);
+  }
+}
+
+joinBtn.addEventListener("click", () => {
+  joinErr.textContent = "";
+  const code = normalize(joinBtn.dataset.code || codeInput.value);
+  if (!isValid(code)) {
+    joinErr.textContent = "That code looks too short. Check it and try again.";
+    return;
+  }
+  enterBoard(code);
+});
+codeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") joinBtn.click(); });
+$("shareBtn").addEventListener("click", async () => {
+  const link = location.origin + location.pathname + "?c=" + encodeURIComponent(rideCode);
+  const text = "Join my ride on Ride Comm! Tap: " + link + "\nOr enter ride code: " + rideCode;
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+    await navigator.clipboard.writeText(link);
+    $("shareBtn").textContent = "Copied!";
+    setTimeout(() => ($("shareBtn").textContent = "Share"), 1500);
+  } catch (_) {}
+});
+$("leaveBtn").addEventListener("click", leave);
+
+// ---------- boot ----------
+showJoinPrompt(new URLSearchParams(location.search).get("c"));
 </script>
 </body>
 </html>

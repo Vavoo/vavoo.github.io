@@ -238,9 +238,21 @@ function isValid(code) {
 // ---------- audio (WebAudio beep, unlocked by the Join gesture) ----------
 function unlockAudio() {
   try {
+    // Ask iOS (16.4+) to treat this as playback so the alert can sound even
+    // when the ring/mute switch is on — this is the bike-mounted use case.
+    if (navigator.audioSession) { try { navigator.audioSession.type = "playback"; } catch (_) {} }
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!audioCtx && Ctx) audioCtx = new Ctx();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    // iOS fully unlocks WebAudio only after an actual sound plays inside the
+    // user gesture — play one silent sample buffer to arm it.
+    if (audioCtx) {
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+    }
   } catch (_) {}
 }
 function beep() {
@@ -256,7 +268,7 @@ function beep() {
       osc.frequency.value = freq;
       const t = now + at;
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.6, t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
       osc.connect(gain).connect(audioCtx.destination);
       osc.start(t);

@@ -92,7 +92,7 @@
     word-break: break-all; margin-bottom: 22px;
   }
   input.codein {
-    width: 100%; text-align: center; text-transform: uppercase;
+    width: 100%; text-align: center;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 1.6rem; letter-spacing: .25rem; font-weight: 700;
     padding: 14px; border-radius: 16px; border: 2px solid var(--line);
@@ -129,8 +129,8 @@
         <div class="bigcode" id="startCode">------</div>
       </div>
       <div id="needCode">
-        <input class="codein" id="codeInput" inputmode="latin" autocapitalize="characters"
-               autocomplete="off" spellcheck="false" placeholder="RIDE CODE" maxlength="16">
+        <input class="codein" id="codeInput" inputmode="latin" autocapitalize="off"
+               autocorrect="off" autocomplete="off" spellcheck="false" placeholder="ride code" maxlength="16">
       </div>
 
       <button class="btn" id="joinBtn">Join ride</button>
@@ -225,8 +225,11 @@ let prev = {};                 // last-seen booleans
 const selfRaised = new Set();  // keys I just set true, to suppress my own beep
 
 // A ride code must be at least 4 chars and contain no "/" (mirrors the app).
+// IMPORTANT: ride codes are case-sensitive Firestore document IDs, and the
+// Android app never case-folds them (e.g. "demo" is lowercase). So we must
+// preserve the exact case — only trim surrounding/inner whitespace.
 function normalize(raw) {
-  return (raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return (raw || "").trim().replace(/\s+/g, "");
 }
 function isValid(code) {
   return code && code.length >= 4 && !code.includes("/");

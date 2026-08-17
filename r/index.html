@@ -317,8 +317,11 @@ function render(data) {
     if (!tile) continue;
     tile.classList.toggle("on", on);
   }
-  // Header name: use the ride's name field if the redesign adds one, else the code.
-  $("rideName").textContent = (data && data.name) ? data.name : rideCode;
+  // Header name: use the ride's name field if set, else the code.
+  // Grey for the shared "demo" ride, purple for a real ride (matches the app title).
+  const nameEl = $("rideName");
+  nameEl.textContent = (data && data.name) ? data.name : rideCode;
+  nameEl.style.color = (rideCode === "demo") ? "var(--muted)" : "var(--accent)";
 }
 function flash(key) {
   const tile = $("tile-" + key);

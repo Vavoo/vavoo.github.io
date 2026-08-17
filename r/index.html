@@ -221,6 +221,7 @@ let unsub = null;
 let audioCtx = null;
 let wakeLock = null;
 let firstSnapshot = true;
+let joinConfirmed = false;     // a server snapshot has confirmed the ride exists
 let prev = {};                 // last-seen booleans
 const selfRaised = new Set();  // keys I just set true, to suppress my own beep
 
@@ -349,13 +350,29 @@ function startListening(code) {
   $("rideCode").textContent = code;
   $("rideName").textContent = code;
   firstSnapshot = true;
+  joinConfirmed = false;
   prev = {};
+  setStatus("");   // "connecting" (grey) until a server snapshot confirms the ride exists
   if (unsub) unsub();
   unsub = onSnapshot(
     doc(db, RIDE_COLLECTION, code),
     (snap) => {
+      const fromServer = !snap.metadata.fromCache;
+
+      // A non-existent document still produces a valid snapshot (exists()==false),
+      // so "connected to Firestore" does NOT mean "the ride is real". Decide that
+      // only on a SERVER snapshot — a cold-cache first event can look empty even
+      // for a ride that does exist on the server.
+      if (!snap.exists()) {
+        dbg("snap (no doc)" + (fromServer ? " [server]" : " [cache]"));
+        if (fromServer) handleMissingRide();
+        return;
+      }
+
+      // The ride exists — we're genuinely joined.
+      joinConfirmed = true;
       setStatus("live");
-      const data = snap.exists() ? (snap.data() || {}) : {};
+      const data = snap.data() || {};
       dbg("snap c" + (data.coffee?1:0) + " g" + (data.gas?1:0) + " p" + (data.photo?1:0)
           + " s" + (data.stop?1:0) + (snap.metadata.hasPendingWrites ? " (local)" : "")
           + (snap.metadata.fromCache ? " [cache]" : ""));
@@ -399,6 +416,23 @@ function endedAndReturn() {
   $("rideName").textContent = "This ride has ended";
   clearTimeout(endedTimer);
   endedTimer = setTimeout(() => leave(), 2500);
+}
+
+// Server confirmed the ride document doesn't exist.
+function handleMissingRide() {
+  const bad = rideCode;
+  dbg("ride not found: " + bad);
+  if (unsub) { unsub(); unsub = null; }
+  if (joinConfirmed) {
+    // it existed a moment ago and is now gone → treat as ended
+    setStatus("");
+    endedAndReturn();
+  } else {
+    // never existed → a bad/typo code; bounce back to the join screen
+    leave();
+    codeInput.value = bad;              // keep it so they can fix it
+    joinErr.textContent = "No ride found with code “" + bad + "”. Check it and try again.";
+  }
 }
 
 // ---------- navigation between the two views ----------

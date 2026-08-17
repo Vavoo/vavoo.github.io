@@ -172,17 +172,18 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 import {
-  getFirestore, doc, onSnapshot, setDoc, serverTimestamp
+  getFirestore, doc, getDoc, onSnapshot, setDoc
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
-// ride-comm project. Firestore rules are open, so no auth is needed for the
-// co-rider web client — it just reads/writes the shared ride document.
+// ride-comm project. The co-rider client needs no login: it reads + toggles the
+// shared flags doc (rules allow the 4 booleans) and reads the ride's name.
 const app = initializeApp({
   apiKey: "AIzaSyCpRW9rnl2hdX4DgB8JJZkb-y7dGqSU_Vs",
   projectId: "ride-comm",
 });
 const db = getFirestore(app);
-const RIDE_COLLECTION = "notifications"; // matches the Android app
+const FLAGS_COLLECTION = "flags";   // the 4 signal booleans (was mixed "notifications")
+const RIDES_COLLECTION = "rides";   // ride identity/metadata (name, owner)
 
 // ---- on-screen debug (only with ?debug=1) — turns the phone into a console ----
 const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
@@ -222,6 +223,7 @@ let audioCtx = null;
 let wakeLock = null;
 let firstSnapshot = true;
 let joinConfirmed = false;     // a server snapshot has confirmed the ride exists
+let rideMetaName = null;       // ride name from rides/{code} (absent for demo)
 let prev = {};                 // last-seen booleans
 const selfRaised = new Set();  // keys I just set true, to suppress my own beep
 
@@ -317,10 +319,10 @@ function render(data) {
     if (!tile) continue;
     tile.classList.toggle("on", on);
   }
-  // Header name: use the ride's name field if set, else the code.
+  // Header name: the ride's name (from rides/{code}) if we have it, else the code.
   // Grey for the shared "demo" ride, purple for a real ride (matches the app title).
   const nameEl = $("rideName");
-  nameEl.textContent = (data && data.name) ? data.name : rideCode;
+  nameEl.textContent = rideMetaName || rideCode;
   nameEl.style.color = (rideCode === "demo") ? "var(--muted)" : "var(--accent)";
 }
 function flash(key) {
@@ -341,8 +343,8 @@ function toggle(key) {
   render(prev);
   dbg("write " + key + "=" + next + " …");
   setDoc(
-    doc(db, RIDE_COLLECTION, rideCode),
-    { [key]: next, timestamp: serverTimestamp() },
+    doc(db, FLAGS_COLLECTION, rideCode),
+    { [key]: next },                 // flags-only: the rules reject any other field
     { merge: true }
   ).then(() => dbg("write " + key + "=" + next + " OK"))
    .catch((e) => { setStatus("err"); dbg("write " + key + " ERR: " + (e && e.code ? e.code : e && e.message ? e.message : e)); });
@@ -354,11 +356,21 @@ function startListening(code) {
   $("rideName").textContent = code;
   firstSnapshot = true;
   joinConfirmed = false;
+  rideMetaName = null;
   prev = {};
   setStatus("");   // "connecting" (grey) until a server snapshot confirms the ride exists
+
+  // Fetch the ride's name from rides/{code} (absent for demo → stays the code, grey).
+  getDoc(doc(db, RIDES_COLLECTION, code)).then((meta) => {
+    if (meta.exists() && typeof meta.data().name === "string" && meta.data().name.trim()) {
+      rideMetaName = meta.data().name.trim();
+      if (rideCode === code) render(prev);
+    }
+  }).catch(() => {});
+
   if (unsub) unsub();
   unsub = onSnapshot(
-    doc(db, RIDE_COLLECTION, code),
+    doc(db, FLAGS_COLLECTION, code),
     (snap) => {
       const fromServer = !snap.metadata.fromCache;
 
@@ -380,14 +392,6 @@ function startListening(code) {
           + " s" + (data.stop?1:0) + (snap.metadata.hasPendingWrites ? " (local)" : "")
           + (snap.metadata.fromCache ? " [cache]" : ""));
 
-      // Ride ended by the owner (quit flag) — inform and drop back to join.
-      if (data.quit === true) {
-        render({});
-        setStatus("");
-        endedAndReturn();
-        return;
-      }
-
       // Alert on any signal that just went from down -> up (someone raised it).
       if (!firstSnapshot) {
         for (const s of SIGNALS) {
@@ -404,7 +408,6 @@ function startListening(code) {
       // snapshot is the source of truth for booleans
       prev = {};
       for (const s of SIGNALS) prev[s.key] = data[s.key] === true;
-      if (data.name) prev.name = data.name;
       firstSnapshot = false;
       render(data);
     },
